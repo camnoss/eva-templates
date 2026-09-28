@@ -32,6 +32,21 @@ No tickets, no copy-pasting from another repo, no waiting on the platform team.
 - **Every template must connect to the release bot:** run `nerv:release-bot:connect` after `publish:github`, and end CI with a `release` job that sends an `image-published` dispatch to Central Dogma (see `go-service`). CI must tag images with the full commit SHA, which is what the bot deploys.
 - **Secure by default:** non-root containers, resource requests and limits, and health probes in the manifests.
 - **Keep templates minimal.** Ship the smallest service that builds, deploys and passes health checks. Teams add features; templates provide the path.
+- **Templates are self-contained.** Each one owns its `skeleton/` and `deploy/`, even where files look alike, so changing one never changes another.
+
+The BRM templates are the one exception to the deployment rules above; see below.
+
+
+## BRM templates
+
+`brm-custom-fm` (a new Facility Module with custom opcodes) and `brm-policy-override` (a customized stock policy opcode) scaffold Oracle BRM 15 code in C.
+
+- **Code only, no deployment.** Opcodes run inside a BRM Connection Manager, and Nerv has no BRM installation or BRM images. These templates create the repository and register it in the catalog as a `library`. They have no `deploy/`, no release bot connection and no Central Dogma pull request, and their catalog entries have no Kubernetes or ArgoCD annotations.
+- **CI without BRM:** `lint` (clang-format and cppcheck) always runs. `build` compiles and runs the cmocka unit tests inside a BRM 15 SDK image, and runs only when the generated repository sets a `BRM_SDK_IMAGE` variable.
+- **Build contract:** `make` (library in `build/lib/`), `make test` and `make lint`, also available through the Dockerfile with `--build-arg BRM_SDK_IMAGE=<image>`.
+- **Code layout:** `src/ops/` holds thin opcode handlers, the only code that makes PCM calls. `src/logic/` holds the flist logic that unit tests cover without a CM.
+- **Oracle source is never committed.** `brm-policy-override` copies the stock `fm_*_pol` source from the SDK at build time and routes the opcode to a wrapper that calls the stock implementation.
+- **Licensing:** the BRM SDK is Oracle proprietary software. Don't publish it, or images built from it, on a public registry.
 
 
 ## Templating gotchas

@@ -1,0 +1,17 @@
+# BRM source style: tabs, Linux braces, return type on its own line.
+BasedOnStyle: LLVM
+UseTab: ForContinuationAndIndentation
+IndentWidth: 8
+TabWidth: 8
+ContinuationIndentWidth: 8
+# No column limit: generated names vary in length, so line breaks are left to the author.
+ColumnLimit: 0
+# Continuation lines get one tab, whatever the length of the name before them.
+AlignAfterOpenBracket: DontAlign
+Cpp11BracedListStyle: false
+BreakBeforeBraces: Linux
+AlwaysBreakAfterReturnType: TopLevelDefinitions
+PointerAlignment: Right
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortFunctionsOnASingleLine: None
+SortIncludes: Never

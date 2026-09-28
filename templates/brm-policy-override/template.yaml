@@ -1,0 +1,102 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: brm-policy-override
+  title: BRM Policy Opcode Override (C)
+  description: >-
+    A repository that customizes an Oracle BRM 15 policy opcode by wrapping the stock
+    implementation, without committing Oracle's source. Code only: it does not
+    deploy anything to Geofront.
+  tags:
+    - brm
+    - c
+    - policy
+spec:
+  owner: group:default/platform
+  type: service
+
+  parameters:
+    - title: Service details
+      required:
+        - name
+        - description
+        - owner
+      properties:
+        name:
+          title: Name
+          type: string
+          description: Lowercase letters, numbers and hyphens. Also the repository name.
+          pattern: '^[a-z0-9]([a-z0-9-]*[a-z0-9])?$'
+          maxLength: 40
+          ui:autofocus: true
+        description:
+          title: Description
+          type: string
+          description: What this customization changes, in one line.
+        owner:
+          title: Owner
+          type: string
+          description: The team that owns this customization.
+          ui:field: OwnerPicker
+          ui:options:
+            catalogFilter:
+              kind: Group
+
+    - title: Policy opcode
+      required:
+        - policyOpcode
+      properties:
+        policyOpcode:
+          title: Policy opcode
+          type: string
+          description: >-
+            The stock policy opcode to customize, for example PCM_OP_CUST_POL_VALIDATE.
+            The build finds the fm_*_pol library that registers it.
+          pattern: '^PCM_OP_[A-Z0-9_]+_POL_[A-Z0-9_]+$'
+          ui:autofocus: true
+
+  steps:
+    - id: fetch-skeleton
+      name: Generate override code
+      action: fetch:template
+      input:
+        url: ./skeleton
+        targetPath: ./app
+        copyWithoutTemplating:
+          - .github/workflows/*
+          - scripts/*
+        values:
+          name: ${{ parameters.name }}
+          description: ${{ parameters.description }}
+          owner: ${{ parameters.owner }}
+          policyOpcode: ${{ parameters.policyOpcode }}
+          # PCM_OP_CUST_POL_VALIDATE -> cust_pol_validate
+          policy: ${{ parameters.policyOpcode | replace("PCM_OP_", "") | lower }}
+          policyUpper: ${{ parameters.policyOpcode | replace("PCM_OP_", "") }}
+
+    - id: publish
+      name: Create repository
+      action: publish:github
+      input:
+        sourcePath: ./app
+        repoUrl: github.com?owner=camnoss&repo=${{ parameters.name }}
+        description: ${{ parameters.description }}
+        defaultBranch: main
+        repoVisibility: public
+
+    # No release bot and no Central Dogma pull request: there is no BRM in
+    # Geofront to deploy to, so this golden path stops at the repository.
+    - id: register
+      name: Register in catalog
+      action: catalog:register
+      input:
+        repoContentsUrl: ${{ steps['publish'].output.repoContentsUrl }}
+        catalogInfoPath: /catalog-info.yaml
+
+  output:
+    links:
+      - title: Repository
+        url: ${{ steps['publish'].output.remoteUrl }}
+      - title: Open in catalog
+        icon: catalog
+        entityRef: ${{ steps['register'].output.entityRef }}

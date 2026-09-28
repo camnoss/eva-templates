@@ -1,0 +1,19 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: ${{ values.name }}
+  description: ${{ values.description | dump }}
+  annotations:
+    github.com/project-slug: camnoss/${{ values.name }}
+    nerv.io/brm-fm: fm_${{ values.module }}
+    # Every opcode of this FM as NAME=number, comma-separated. Keep it in sync
+    # with include/${{ values.module }}_ops.h so others can avoid your numbers.
+    nerv.io/brm-opcodes: ${{ values.opcodeMacro }}=${{ values.opcodeNumber }}
+  tags:
+    - brm
+    - c
+    - opcode
+spec:
+  type: library
+  lifecycle: experimental
+  owner: ${{ values.owner }}

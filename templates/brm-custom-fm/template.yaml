@@ -1,0 +1,118 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: brm-custom-fm
+  title: BRM Custom Opcode (C)
+  description: >-
+    A repository for a custom Oracle BRM 15 Facility Module in C, with its first
+    opcode, unit tests and CI. Code only: it does not deploy anything to Geofront.
+  tags:
+    - brm
+    - c
+    - opcode
+spec:
+  owner: group:default/platform
+  type: service
+
+  parameters:
+    - title: Service details
+      required:
+        - name
+        - description
+        - owner
+      properties:
+        name:
+          title: Name
+          type: string
+          description: Lowercase letters, numbers and hyphens. Also the repository name.
+          pattern: '^[a-z0-9]([a-z0-9-]*[a-z0-9])?$'
+          maxLength: 40
+          ui:autofocus: true
+        description:
+          title: Description
+          type: string
+          description: What these opcodes do, in one line.
+        owner:
+          title: Owner
+          type: string
+          description: The team that owns this Facility Module.
+          ui:field: OwnerPicker
+          ui:options:
+            catalogFilter:
+              kind: Group
+
+    - title: First opcode
+      required:
+        - module
+        - opcodeName
+        - opcodeNumber
+      properties:
+        module:
+          title: Module
+          type: string
+          description: >-
+            Short C identifier for the Facility Module, for example loyalty. It is
+            built as fm_<module>.so, and every symbol and file is prefixed with it.
+          pattern: '^[a-z][a-z0-9_]{1,19}$'
+        opcodeName:
+          title: Opcode name
+          type: string
+          description: >-
+            Uppercase, without a prefix. With module loyalty, APPLY_POINTS becomes
+            NERV_OP_LOYALTY_APPLY_POINTS.
+          pattern: '^[A-Z][A-Z0-9_]{1,39}$'
+        opcodeNumber:
+          title: Opcode number
+          type: integer
+          description: >-
+            Must be unique across every custom FM in BRM. Search the catalog for the
+            nerv.io/brm-opcodes annotation before you pick one.
+          # Start of the range BRM leaves for custom opcodes.
+          minimum: 10000
+
+  steps:
+    - id: fetch-skeleton
+      name: Generate FM code
+      action: fetch:template
+      input:
+        url: ./skeleton
+        targetPath: ./app
+        copyWithoutTemplating:
+          - .github/workflows/*
+        values:
+          name: ${{ parameters.name }}
+          description: ${{ parameters.description }}
+          owner: ${{ parameters.owner }}
+          module: ${{ parameters.module }}
+          moduleUpper: ${{ parameters.module | upper }}
+          opcodeName: ${{ parameters.opcodeName }}
+          opcodeLower: ${{ parameters.opcodeName | lower }}
+          opcodeMacro: NERV_OP_${{ parameters.module | upper }}_${{ parameters.opcodeName }}
+          opcodeNumber: ${{ parameters.opcodeNumber }}
+
+    - id: publish
+      name: Create repository
+      action: publish:github
+      input:
+        sourcePath: ./app
+        repoUrl: github.com?owner=camnoss&repo=${{ parameters.name }}
+        description: ${{ parameters.description }}
+        defaultBranch: main
+        repoVisibility: public
+
+    # No release bot and no Central Dogma pull request: there is no BRM in
+    # Geofront to deploy to, so this golden path stops at the repository.
+    - id: register
+      name: Register in catalog
+      action: catalog:register
+      input:
+        repoContentsUrl: ${{ steps['publish'].output.repoContentsUrl }}
+        catalogInfoPath: /catalog-info.yaml
+
+  output:
+    links:
+      - title: Repository
+        url: ${{ steps['publish'].output.remoteUrl }}
+      - title: Open in catalog
+        icon: catalog
+        entityRef: ${{ steps['register'].output.entityRef }}

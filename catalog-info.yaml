@@ -6,3 +6,5 @@ metadata:
 spec:
   targets:
     - ./templates/go-service/template.yaml
+    - ./templates/brm-custom-fm/template.yaml
+    - ./templates/brm-policy-override/template.yaml
