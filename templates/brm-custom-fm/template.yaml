@@ -1,0 +1,160 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: brm-custom-fm
+  title: BRM Custom Opcode (C)
+  description: >-
+    A custom Oracle BRM 15 Facility Module in C with its first opcode, unit tests,
+    CI that builds a Connection Manager image on GHCR, and automatic deploys to dev
+    through Central Dogma on every merge.
+  tags:
+    - brm
+    - c
+    - opcode
+spec:
+  owner: group:default/platform
+  type: service
+
+  parameters:
+    - title: Service details
+      required:
+        - name
+        - description
+        - owner
+      properties:
+        name:
+          title: Name
+          type: string
+          description: >-
+            Lowercase letters, numbers and hyphens. Also used for the repository, the
+            CM image and the <name>-dev namespace.
+          pattern: '^[a-z0-9]([a-z0-9-]*[a-z0-9])?$'
+          maxLength: 40
+          ui:autofocus: true
+        description:
+          title: Description
+          type: string
+          description: What these opcodes do, in one line.
+        owner:
+          title: Owner
+          type: string
+          description: The team that owns this Facility Module.
+          ui:field: OwnerPicker
+          ui:options:
+            catalogFilter:
+              kind: Group
+
+    - title: First opcode
+      required:
+        - module
+        - opcodeName
+        - opcodeNumber
+      properties:
+        module:
+          title: Module
+          type: string
+          description: >-
+            Short C identifier for the Facility Module, for example loyalty. It is
+            built as fm_<module>.so, and every symbol and file is prefixed with it.
+          pattern: '^[a-z][a-z0-9_]{1,19}$'
+        opcodeName:
+          title: Opcode name
+          type: string
+          description: >-
+            Uppercase, without a prefix. With module loyalty, APPLY_POINTS becomes
+            NERV_OP_LOYALTY_APPLY_POINTS.
+          pattern: '^[A-Z][A-Z0-9_]{1,39}$'
+        opcodeNumber:
+          title: Opcode number
+          type: integer
+          description: >-
+            Must be unique across every custom FM in BRM. Search the catalog for the
+            nerv.io/brm-opcodes annotation before you pick one.
+          # Start of the range BRM leaves for custom opcodes.
+          minimum: 10000
+
+  steps:
+    - id: fetch-skeleton
+      name: Generate FM code
+      action: fetch:template
+      input:
+        url: ./skeleton
+        targetPath: ./app
+        copyWithoutTemplating:
+          - .github/workflows/*
+          - docker/*
+          - scripts/*
+        values:
+          name: ${{ parameters.name }}
+          description: ${{ parameters.description }}
+          owner: ${{ parameters.owner }}
+          module: ${{ parameters.module }}
+          moduleUpper: ${{ parameters.module | upper }}
+          opcodeName: ${{ parameters.opcodeName }}
+          opcodeLower: ${{ parameters.opcodeName | lower }}
+          opcodeMacro: NERV_OP_${{ parameters.module | upper }}_${{ parameters.opcodeName }}
+          opcodeNumber: ${{ parameters.opcodeNumber }}
+
+    - id: publish
+      name: Create repository
+      action: publish:github
+      input:
+        sourcePath: ./app
+        repoUrl: github.com?owner=camnoss&repo=${{ parameters.name }}
+        description: ${{ parameters.description }}
+        defaultBranch: main
+        repoVisibility: public
+
+    # CI needs a few minutes before its release job runs, so the secret is in place in time.
+    - id: connect-release-bot
+      name: Connect to the release bot
+      action: nerv:release-bot:connect
+      input:
+        repoUrl: github.com?owner=camnoss&repo=${{ parameters.name }}
+
+    - id: fetch-deploy
+      name: Generate deployment manifests
+      action: fetch:template
+      input:
+        url: ./deploy
+        targetPath: ./dogma
+        values:
+          name: ${{ parameters.name }}
+          # CI tags images with the full commit SHA; the first push builds this one.
+          imageTag: ${{ steps['publish'].output.commitHash }}
+          # The DM of the BRM core installation in Geofront.
+          dmHost: dm-oracle.brm.svc.cluster.local
+          dmPort: 12950
+
+    - id: deploy-pr
+      name: Open Central Dogma pull request
+      action: publish:github:pull-request
+      input:
+        repoUrl: github.com?owner=camnoss&repo=central-dogma
+        branchName: feature/add-${{ parameters.name }}
+        title: 'feat: deploy ${{ parameters.name }} to dev'
+        description: |
+          Adds `apps/${{ parameters.name }}/` so ArgoCD deploys the **${{ parameters.name }}** Connection Manager (fm_${{ parameters.module }}) to the `${{ parameters.name }}-dev` namespace.
+
+          Created from the `brm-custom-fm` golden path in MAGI. Service repository: ${{ steps['publish'].output.remoteUrl }}
+
+          This pull request merges itself once the manifests validate and the first image is on GHCR. After that, every merge to `main` in the service repository deploys to dev automatically.
+        sourcePath: ./dogma
+        targetPath: apps/${{ parameters.name }}
+
+    - id: register
+      name: Register in catalog
+      action: catalog:register
+      input:
+        repoContentsUrl: ${{ steps['publish'].output.repoContentsUrl }}
+        catalogInfoPath: /catalog-info.yaml
+
+  output:
+    links:
+      - title: Repository
+        url: ${{ steps['publish'].output.remoteUrl }}
+      - title: Deployment pull request
+        url: ${{ steps['deploy-pr'].output.remoteUrl }}
+      - title: Open in catalog
+        icon: catalog
+        entityRef: ${{ steps['register'].output.entityRef }}

@@ -1,0 +1,13 @@
+#
+# Connection Manager settings for ${{ values.name }} in dev.
+#
+# Each entry replaces the entries with the same key in the CM image's stock
+# pin.conf. The stock pin.conf already loads the policy library, and the image
+# replaces that library with the customized one.
+#
+- cm cm_ports 11960
+- cm userid 0.0.0.1 /service/pcm_client 1
+- cm dm_pointer 0.0.0.1 ip ${{ values.dmHost }} ${{ values.dmPort }}
+- cm logfile ./cm.pinlog
+# 1 = errors, 2 = warnings, 3 = debug (logs every flist; never in production).
+- cm loglevel 2

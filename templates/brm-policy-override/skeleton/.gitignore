@@ -1,0 +1,17 @@
+# Build output
+build/
+*.o
+*.d
+*.so
+
+# BRM logs from local runs
+*.pinlog
+default.pinlog
+
+# Editors
+.vscode/
+.idea/
+*.swp
+
+# env file
+.env
