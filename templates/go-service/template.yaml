@@ -83,7 +83,7 @@ spec:
       action: publish:github:pull-request
       input:
         repoUrl: github.com?owner=camnoss&repo=central-dogma
-        branchName: feat/add-${{ parameters.name }}
+        branchName: feature/add-${{ parameters.name }}
         title: 'feat: deploy ${{ parameters.name }} to dev'
         description: |
           Adds `apps/${{ parameters.name }}/` so ArgoCD deploys **${{ parameters.name }}** to the `${{ parameters.name }}-dev` namespace.
