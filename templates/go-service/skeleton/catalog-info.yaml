@@ -1,0 +1,16 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: ${{ values.name }}
+  description: ${{ values.description | dump }}
+  annotations:
+    github.com/project-slug: camnoss/${{ values.name }}
+    backstage.io/kubernetes-id: ${{ values.name }}
+    argocd/app-name: ${{ values.name }}-dev
+  tags:
+    - go
+    - gin
+spec:
+  type: service
+  lifecycle: experimental
+  owner: ${{ values.owner }}

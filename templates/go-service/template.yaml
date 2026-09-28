@@ -1,0 +1,110 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: go-service
+  title: Go Service (Gin)
+  description: >-
+    A Go 1.27 HTTP service built with Gin, with a Dockerfile, CI that pushes to GHCR,
+    and a Central Dogma pull request that deploys it to dev.
+  tags:
+    - go
+    - gin
+    - recommended
+spec:
+  owner: group:default/platform
+  type: service
+
+  parameters:
+    - title: Service details
+      required:
+        - name
+        - description
+        - owner
+      properties:
+        name:
+          title: Name
+          type: string
+          description: >-
+            Lowercase letters, numbers and hyphens. Also used for the repository, the
+            image and the <name>-dev namespace.
+          pattern: '^[a-z0-9]([a-z0-9-]*[a-z0-9])?$'
+          maxLength: 40
+          ui:autofocus: true
+        description:
+          title: Description
+          type: string
+          description: What this service does, in one line.
+        owner:
+          title: Owner
+          type: string
+          description: The team that owns this service.
+          ui:field: OwnerPicker
+          ui:options:
+            catalogFilter:
+              kind: Group
+
+  steps:
+    - id: fetch-skeleton
+      name: Generate service code
+      action: fetch:template
+      input:
+        url: ./skeleton
+        targetPath: ./app
+        copyWithoutTemplating:
+          - .github/workflows/*
+        values:
+          name: ${{ parameters.name }}
+          description: ${{ parameters.description }}
+          owner: ${{ parameters.owner }}
+
+    - id: publish
+      name: Create repository
+      action: publish:github
+      input:
+        sourcePath: ./app
+        repoUrl: github.com?owner=camnoss&repo=${{ parameters.name }}
+        description: ${{ parameters.description }}
+        defaultBranch: main
+        repoVisibility: public
+
+    - id: fetch-deploy
+      name: Generate deployment manifests
+      action: fetch:template
+      input:
+        url: ./deploy
+        targetPath: ./dogma
+        values:
+          name: ${{ parameters.name }}
+          # CI tags images with the full commit SHA; the first push builds this one.
+          imageTag: ${{ steps['publish'].output.commitHash }}
+
+    - id: deploy-pr
+      name: Open Central Dogma pull request
+      action: publish:github:pull-request
+      input:
+        repoUrl: github.com?owner=camnoss&repo=central-dogma
+        branchName: feat/add-${{ parameters.name }}
+        title: 'feat: deploy ${{ parameters.name }} to dev'
+        description: |
+          Adds `apps/${{ parameters.name }}/` so ArgoCD deploys **${{ parameters.name }}** to the `${{ parameters.name }}-dev` namespace.
+
+          Created from the `go-service` golden path in MAGI. Service repository: ${{ steps['publish'].output.remoteUrl }}
+        sourcePath: ./dogma
+        targetPath: apps/${{ parameters.name }}
+
+    - id: register
+      name: Register in catalog
+      action: catalog:register
+      input:
+        repoContentsUrl: ${{ steps['publish'].output.repoContentsUrl }}
+        catalogInfoPath: /catalog-info.yaml
+
+  output:
+    links:
+      - title: Repository
+        url: ${{ steps['publish'].output.remoteUrl }}
+      - title: Deployment pull request
+        url: ${{ steps['deploy-pr'].output.remoteUrl }}
+      - title: Open in catalog
+        icon: catalog
+        entityRef: ${{ steps['register'].output.entityRef }}

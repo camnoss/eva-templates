@@ -1,0 +1,8 @@
+apiVersion: backstage.io/v1alpha1
+kind: Location
+metadata:
+  name: eva-templates
+  description: Golden path templates for the Nerv platform
+spec:
+  targets:
+    - ./templates/go-service/template.yaml
