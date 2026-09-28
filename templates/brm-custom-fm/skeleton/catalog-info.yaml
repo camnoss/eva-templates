@@ -5,8 +5,6 @@ metadata:
   description: ${{ values.description | dump }}
   annotations:
     github.com/project-slug: camnoss/${{ values.name }}
-    backstage.io/kubernetes-id: ${{ values.name }}
-    argocd/app-name: ${{ values.name }}-dev
     nerv.io/brm-fm: fm_${{ values.module }}
     # Every opcode of this FM as NAME=number, comma-separated. Keep it in sync
     # with include/${{ values.module }}_ops.h so others can avoid your numbers.
@@ -16,6 +14,6 @@ metadata:
     - c
     - opcode
 spec:
-  type: service
+  type: library
   lifecycle: experimental
   owner: ${{ values.owner }}

@@ -5,9 +5,7 @@ metadata:
   description: ${{ values.description | dump }}
   annotations:
     github.com/project-slug: camnoss/${{ values.name }}
-    backstage.io/kubernetes-id: ${{ values.name }}
-    argocd/app-name: ${{ values.name }}-dev
-    # Every stock policy opcode this CM customizes, comma-separated. Keep it in
+    # Every stock policy opcode this repository customizes, comma-separated. Keep it in
     # sync with overrides.conf.
     nerv.io/brm-policy-opcodes: ${{ values.policyOpcode }}
   tags:
@@ -15,6 +13,6 @@ metadata:
     - c
     - policy
 spec:
-  type: service
+  type: library
   lifecycle: experimental
   owner: ${{ values.owner }}

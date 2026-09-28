@@ -4,9 +4,8 @@ metadata:
   name: brm-custom-fm
   title: BRM Custom Opcode (C)
   description: >-
-    A custom Oracle BRM 15 Facility Module in C with its first opcode, unit tests,
-    CI that builds a Connection Manager image on GHCR, and automatic deploys to dev
-    through Central Dogma on every merge.
+    A repository for a custom Oracle BRM 15 Facility Module in C, with its first
+    opcode, unit tests and CI. Code only: it does not deploy anything to Geofront.
   tags:
     - brm
     - c
@@ -25,9 +24,7 @@ spec:
         name:
           title: Name
           type: string
-          description: >-
-            Lowercase letters, numbers and hyphens. Also used for the repository, the
-            CM image and the <name>-dev namespace.
+          description: Lowercase letters, numbers and hyphens. Also the repository name.
           pattern: '^[a-z0-9]([a-z0-9-]*[a-z0-9])?$'
           maxLength: 40
           ui:autofocus: true
@@ -82,8 +79,6 @@ spec:
         targetPath: ./app
         copyWithoutTemplating:
           - .github/workflows/*
-          - docker/*
-          - scripts/*
         values:
           name: ${{ parameters.name }}
           description: ${{ parameters.description }}
@@ -105,43 +100,8 @@ spec:
         defaultBranch: main
         repoVisibility: public
 
-    # CI needs a few minutes before its release job runs, so the secret is in place in time.
-    - id: connect-release-bot
-      name: Connect to the release bot
-      action: nerv:release-bot:connect
-      input:
-        repoUrl: github.com?owner=camnoss&repo=${{ parameters.name }}
-
-    - id: fetch-deploy
-      name: Generate deployment manifests
-      action: fetch:template
-      input:
-        url: ./deploy
-        targetPath: ./dogma
-        values:
-          name: ${{ parameters.name }}
-          # CI tags images with the full commit SHA; the first push builds this one.
-          imageTag: ${{ steps['publish'].output.commitHash }}
-          # The DM of the BRM core installation in Geofront.
-          dmHost: dm-oracle.brm.svc.cluster.local
-          dmPort: 12950
-
-    - id: deploy-pr
-      name: Open Central Dogma pull request
-      action: publish:github:pull-request
-      input:
-        repoUrl: github.com?owner=camnoss&repo=central-dogma
-        branchName: feature/add-${{ parameters.name }}
-        title: 'feat: deploy ${{ parameters.name }} to dev'
-        description: |
-          Adds `apps/${{ parameters.name }}/` so ArgoCD deploys the **${{ parameters.name }}** Connection Manager (fm_${{ parameters.module }}) to the `${{ parameters.name }}-dev` namespace.
-
-          Created from the `brm-custom-fm` golden path in MAGI. Service repository: ${{ steps['publish'].output.remoteUrl }}
-
-          This pull request merges itself once the manifests validate and the first image is on GHCR. After that, every merge to `main` in the service repository deploys to dev automatically.
-        sourcePath: ./dogma
-        targetPath: apps/${{ parameters.name }}
-
+    # No release bot and no Central Dogma pull request: there is no BRM in
+    # Geofront to deploy to, so this golden path stops at the repository.
     - id: register
       name: Register in catalog
       action: catalog:register
@@ -153,8 +113,6 @@ spec:
     links:
       - title: Repository
         url: ${{ steps['publish'].output.remoteUrl }}
-      - title: Deployment pull request
-        url: ${{ steps['deploy-pr'].output.remoteUrl }}
       - title: Open in catalog
         icon: catalog
         entityRef: ${{ steps['register'].output.entityRef }}

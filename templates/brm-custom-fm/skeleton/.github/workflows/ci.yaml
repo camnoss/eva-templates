@@ -9,9 +9,20 @@ permissions:
   contents: read
 
 jobs:
-  # Lint and unit tests run in the Dockerfile's test stage, inside the BRM SDK
-  # image, so they run the same way on a laptop: docker build --target test .
-  test:
+  # Needs no BRM: formatting and static analysis only read our sources.
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq clang-format cppcheck
+      - run: make lint
+
+  # Compiling and unit testing need the Oracle BRM 15 SDK, which Nerv does not
+  # provide. Set the BRM_SDK_IMAGE repository variable to an SDK image you are
+  # licensed to use and this job runs; without it, the job is skipped.
+  build:
+    needs: lint
+    if: vars.BRM_SDK_IMAGE != ''
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -20,61 +31,6 @@ jobs:
         with:
           context: .
           target: test
+          build-args: BRM_SDK_IMAGE=${{ vars.BRM_SDK_IMAGE }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-  image:
-    needs: test
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - uses: actions/checkout@v7
-      - uses: docker/setup-buildx-action@v4
-      - uses: docker/login-action@v4
-        if: github.event_name == 'push'
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - id: meta
-        uses: docker/metadata-action@v6
-        with:
-          images: ghcr.io/${{ github.repository }}
-          tags: |
-            type=sha,format=long,prefix=
-            type=raw,value=main,enable={{is_default_branch}}
-      - uses: docker/build-push-action@v7
-        with:
-          context: .
-          target: runtime
-          push: ${{ github.event_name == 'push' }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-  # Tells the Central Dogma release bot that a new image is on GHCR, so it
-  # deploys it to dev right away. MAGI sets DOGMA_DISPATCH_TOKEN when it creates
-  # the repository; without it, the bot picks the image up on its hourly run.
-  release:
-    needs: image
-    if: github.event_name == 'push'
-    runs-on: ubuntu-latest
-    permissions: {}
-    steps:
-      - env:
-          GH_TOKEN: ${{ secrets.DOGMA_DISPATCH_TOKEN }}
-          SERVICE: ${{ github.event.repository.name }}
-          SHA: ${{ github.sha }}
-        run: |
-          if [ -z "$GH_TOKEN" ]; then
-            echo "::notice::DOGMA_DISPATCH_TOKEN is not set. The release bot will deploy ${SHA} on its hourly run."
-            exit 0
-          fi
-          gh api repos/camnoss/central-dogma/dispatches \
-            -f event_type=image-published \
-            -f "client_payload[service]=${SERVICE}" \
-            -f "client_payload[sha]=${SHA}"
-          echo "Asked the release bot to deploy ${SERVICE} ${SHA}."

@@ -34,17 +34,19 @@ No tickets, no copy-pasting from another repo, no waiting on the platform team.
 - **Keep templates minimal.** Ship the smallest service that builds, deploys and passes health checks. Teams add features; templates provide the path.
 - **Templates are self-contained.** Each one owns its `skeleton/` and `deploy/`, even where files look alike, so changing one never changes another.
 
+The BRM templates are the one exception to the deployment rules above; see below.
+
 
 ## BRM templates
 
 `brm-custom-fm` (a new Facility Module with custom opcodes) and `brm-policy-override` (a customized stock policy opcode) scaffold Oracle BRM 15 code in C.
 
-- **An opcode ships as a Connection Manager.** Opcodes run inside a CM, so each repository builds a CM image (`FROM` the BRM 15 CM image, plus its library) and deploys it as its own service. That keeps the golden path contract: a deployable service, released by the Central Dogma release bot.
-- **Build contract:** both templates build inside the BRM SDK image with `make` (library in `build/lib/`), `make test` (cmocka unit tests) and `make lint` (clang-format and cppcheck), through the Dockerfile's `test` and `runtime` stages.
+- **Code only, no deployment.** Opcodes run inside a BRM Connection Manager, and Nerv has no BRM installation or BRM images. These templates create the repository and register it in the catalog as a `library`. They have no `deploy/`, no release bot connection and no Central Dogma pull request, and their catalog entries have no Kubernetes or ArgoCD annotations.
+- **CI without BRM:** `lint` (clang-format and cppcheck) always runs. `build` compiles and runs the cmocka unit tests inside a BRM 15 SDK image, and runs only when the generated repository sets a `BRM_SDK_IMAGE` variable.
+- **Build contract:** `make` (library in `build/lib/`), `make test` and `make lint`, also available through the Dockerfile with `--build-arg BRM_SDK_IMAGE=<image>`.
 - **Code layout:** `src/ops/` holds thin opcode handlers, the only code that makes PCM calls. `src/logic/` holds the flist logic that unit tests cover without a CM.
 - **Oracle source is never committed.** `brm-policy-override` copies the stock `fm_*_pol` source from the SDK at build time and routes the opcode to a wrapper that calls the stock implementation.
-- **Platform prerequisites:** BRM core (DM and database) running in Geofront, the `brm-cm-credentials` Secret in each service namespace, and the SDK and CM base images (`BRM_SDK_IMAGE` and `BRM_CM_IMAGE` in the Dockerfiles).
-- **Licensing:** the BRM SDK and CM images contain Oracle proprietary software. Publishing them, or images built from them, on a public registry is redistribution that Oracle's license generally does not allow. Use private images outside an educational setup.
+- **Licensing:** the BRM SDK is Oracle proprietary software. Don't publish it, or images built from it, on a public registry.
 
 
 ## Templating gotchas

@@ -10,7 +10,7 @@ ColumnLimit: 0
 AlignAfterOpenBracket: DontAlign
 Cpp11BracedListStyle: false
 BreakBeforeBraces: Linux
-AlwaysBreakAfterDefinitionReturnType: TopLevel
+AlwaysBreakAfterReturnType: TopLevelDefinitions
 PointerAlignment: Right
 AllowShortIfStatementsOnASingleLine: Never
 AllowShortFunctionsOnASingleLine: None

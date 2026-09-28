@@ -2,7 +2,7 @@
 
 ${{ values.description }}
 
-A custom Oracle BRM 15 Facility Module, **fm_${{ values.module }}**, created from the `brm-custom-fm` golden path in MAGI. It runs in its own Connection Manager (CM), deployed to Geofront through Central Dogma.
+A custom Oracle BRM 15 Facility Module, **fm_${{ values.module }}**, created from the `brm-custom-fm` golden path in MAGI. This repository holds the code only: Nerv has no BRM installation, so nothing here is deployed to Geofront.
 
 ## Opcodes
 
@@ -22,29 +22,37 @@ src/logic/               Flist logic with no PCM calls, covered by unit tests
 src/common/              Helpers shared by the handlers (transactions)
 test/unit/               cmocka unit tests of src/logic/
 test/flists/             Input flists for testnap, one folder per opcode
-conf/pin.conf.d/         The pin.conf entry that loads the FM, baked into the image
-docker/cm-entrypoint.sh  Builds the CM's pin.conf at startup
-scripts/testnap.sh       Calls an opcode on the dev CM
+conf/pin.conf.d/         The pin.conf entry that loads the FM into a CM
 ```
 
-## Build and test
+## Lint, build and test
 
-Everything runs inside the BRM SDK image, so you only need Docker:
+`make lint` (clang-format and cppcheck) needs no BRM, and CI runs it on every push.
+
+Compiling and unit testing need the Oracle BRM 15 SDK, which Nerv does not provide. With an SDK image you are licensed to use:
 
 ```bash
-docker build --target test .      # clang-format, cppcheck and unit tests
-docker build --target runtime .   # the CM image
+docker build --build-arg BRM_SDK_IMAGE=<your-sdk-image> .   # make, then make lint test
 ```
 
-Inside the SDK image (or anywhere with `PIN_HOME` set to a BRM 15 SDK), use `make`, `make test` and `make lint` directly.
+Or, anywhere with `PIN_HOME` set to a BRM 15 SDK, run `make`, `make test` and `make lint` directly. In CI, set the `BRM_SDK_IMAGE` repository variable to turn on the `build` job, which is skipped without it.
 
-## Call an opcode in dev
+## Try it on a BRM installation
 
-```bash
-bash scripts/testnap.sh ${{ values.opcodeMacro }} test/flists/${{ values.opcodeLower }}/read_account.flist
-```
+On a BRM 15 system you have access to:
 
-Change `- cm loglevel` to 3 in Central Dogma to see every input and output flist in `cm.pinlog`.
+1. Copy `build/lib/fm_${{ values.module }}.so` to `$PIN_HOME/lib/`.
+2. Add the line from `conf/pin.conf.d/fm_${{ values.module }}.conf` to the CM's `pin.conf` and restart the CM.
+3. Call the opcode with testnap, using its number from `include/${{ values.module }}_ops.h`:
+
+   ```
+   r << XX 1
+   0 PIN_FLD_POID           POID [0] 0.0.0.1 /account 1 0
+   XX
+   xop ${{ values.opcodeNumber }} 0 1
+   ```
+
+Set `- cm loglevel 3` in the CM's `pin.conf` to see every input and output flist in `cm.pinlog`.
 
 ## Add an opcode
 
@@ -66,13 +74,11 @@ Change `- cm loglevel` to 3 in Central Dogma to see every input and output flist
 - **Prefix every symbol with `${{ values.module }}_`.** All FMs share one CM process.
 - **Log flists at debug level only.** They can hold customer and payment data.
 
-## Build and deploy
+## CI
 
-- **Pull requests:** CI runs lint and unit tests in the SDK image, and builds the CM image.
-- **Pushes to `main`:** CI pushes `ghcr.io/camnoss/${{ values.name }}` tagged with the commit SHA and `main`, and the Central Dogma release bot deploys it to dev.
-- **Configuration:** the CM's DM connection and logging live in [Central Dogma](https://github.com/camnoss/central-dogma) under `apps/${{ values.name }}/overlays/dev/pin.conf.overrides`.
-- **Credentials:** the CM reads its wallet from the `brm-cm-credentials` Secret, which the platform provides in the namespace. Until it exists, the pod waits in `ContainerCreating`.
+| Job | Runs | Needs |
+|---|---|---|
+| `lint` | Every pull request and push to `main` | Nothing |
+| `build` | Same, only when the `BRM_SDK_IMAGE` variable is set | A BRM 15 SDK image |
 
-| Environment | Namespace | ArgoCD app | CM address |
-|---|---|---|---|
-| dev | `${{ values.name }}-dev` | `${{ values.name }}-dev` | `${{ values.name }}.${{ values.name }}-dev.svc:11960` |
+There is no image and no deployment: this repository is not connected to Central Dogma.
