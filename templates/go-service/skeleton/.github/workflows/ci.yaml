@@ -49,3 +49,27 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  # Tells the Central Dogma release bot that a new image is on GHCR, so it
+  # deploys it to dev right away. MAGI sets DOGMA_DISPATCH_TOKEN when it creates
+  # the repository; without it, the bot picks the image up on its hourly run.
+  release:
+    needs: image
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - env:
+          GH_TOKEN: ${{ secrets.DOGMA_DISPATCH_TOKEN }}
+          SERVICE: ${{ github.event.repository.name }}
+          SHA: ${{ github.sha }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::notice::DOGMA_DISPATCH_TOKEN is not set. The release bot will deploy ${SHA} on its hourly run."
+            exit 0
+          fi
+          gh api repos/camnoss/central-dogma/dispatches \
+            -f event_type=image-published \
+            -f "client_payload[service]=${SERVICE}" \
+            -f "client_payload[sha]=${SHA}"
+          echo "Asked the release bot to deploy ${SERVICE} ${SHA}."

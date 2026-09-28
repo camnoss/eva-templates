@@ -5,7 +5,7 @@ metadata:
   title: Go Service (Gin)
   description: >-
     A Go 1.27 HTTP service built with Gin, with a Dockerfile, CI that pushes to GHCR,
-    and a Central Dogma pull request that deploys it to dev.
+    and automatic deploys to dev through Central Dogma on every merge.
   tags:
     - go
     - gin
@@ -67,6 +67,13 @@ spec:
         defaultBranch: main
         repoVisibility: public
 
+    # CI needs a few minutes before its release job runs, so the secret is in place in time.
+    - id: connect-release-bot
+      name: Connect to the release bot
+      action: nerv:release-bot:connect
+      input:
+        repoUrl: github.com?owner=camnoss&repo=${{ parameters.name }}
+
     - id: fetch-deploy
       name: Generate deployment manifests
       action: fetch:template
@@ -89,6 +96,8 @@ spec:
           Adds `apps/${{ parameters.name }}/` so ArgoCD deploys **${{ parameters.name }}** to the `${{ parameters.name }}-dev` namespace.
 
           Created from the `go-service` golden path in MAGI. Service repository: ${{ steps['publish'].output.remoteUrl }}
+
+          This pull request merges itself once the manifests validate and the first image is on GHCR. After that, every merge to `main` in the service repository deploys to dev automatically.
         sourcePath: ./dogma
         targetPath: apps/${{ parameters.name }}
 

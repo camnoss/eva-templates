@@ -7,7 +7,8 @@
 Each template is a **golden path**: an opinionated, supported way to create a new service. With a single form in MAGI, a team gets:
 
 - A new repository with working code, a Dockerfile and CI already in place
-- A pull request in Central Dogma that deploys the service to `dev`
+- A pull request in Central Dogma that deploys the service to `dev` and merges itself once the first image is built
+- Automatic deploys to `dev` after every merge to `main`, through the Central Dogma release bot
 - The service registered in the catalog, with its owner, Kubernetes status and ArgoCD deployments
 
 No tickets, no copy-pasting from another repo, no waiting on the platform team.
@@ -28,6 +29,7 @@ No tickets, no copy-pasting from another repo, no waiting on the platform team.
 - **Names** are lowercase and hyphenated, describing the stack: `go-service`, `node-service`, `static-site`.
 - **Every template must produce a deployable service.** A template that stops at "repository created" is not a golden path.
 - **Every generated repository must include** `catalog-info.yaml` with an `owner`, and the `backstage.io/kubernetes-id` and `argocd/app-name` annotations.
+- **Every template must connect to the release bot:** run `nerv:release-bot:connect` after `publish:github`, and end CI with a `release` job that sends an `image-published` dispatch to Central Dogma (see `go-service`). CI must tag images with the full commit SHA, which is what the bot deploys.
 - **Secure by default:** non-root containers, resource requests and limits, and health probes in the manifests.
 - **Keep templates minimal.** Ship the smallest service that builds, deploys and passes health checks. Teams add features; templates provide the path.
 
