@@ -34,7 +34,7 @@ No tickets, no copy-pasting from another repo, no waiting on the platform team.
 - **Keep templates minimal.** Ship the smallest service that builds, deploys and passes health checks. Teams add features; templates provide the path.
 - **Templates are self-contained.** Each one owns its `skeleton/` and `deploy/`, even where files look alike, so changing one never changes another.
 
-The BRM templates are the one exception to the deployment rules above; see below.
+The BRM templates and `event-state-stream` are the exceptions to the deployment rules above; see below.
 
 
 ## BRM templates
@@ -48,6 +48,15 @@ The BRM templates are the one exception to the deployment rules above; see below
 - **Oracle source is never committed.** `brm-policy-override` copies the stock `fm_*_pol` source from the SDK at build time and routes the opcode to a wrapper that calls the stock implementation.
 - **Licensing:** the BRM SDK is Oracle proprietary software. Don't publish it, or images built from it, on a public registry.
 
+
+## Event stream template
+
+`event-state-stream` publishes an **ECST state stream**: a compacted Kafka topic `<domain>.<entity>.state.v1` that carries the full state of one entity per key, with CloudEvents 1.0.2 headers and an Avro value. See [Event streams in Central Dogma](https://github.com/camnoss/central-dogma#event-streams).
+
+- **No repository, no service.** The stream belongs to an existing producer, picked from the catalog. The template only renders `streams/<domain>/<entity>/` and opens a pull request in Central Dogma from `feature/stream-<domain>-<entity>`. It never uses `feature/add-*`, so the pull request is not merged automatically; the domain team reviews it.
+- **What the folder holds:** `kafkatopic.yaml`, `kafkausers.yaml` (the producer user `<domain>-<entity>-producer`, with `Write`), `schema/<Entity>State.avsc`, `asyncapi.yaml` and `catalog-info.yaml` (an `API` linked to its producer through the `nerv.io/producer` annotation).
+- **The schema is a starter.** It holds only the envelope fields: `<entity>Id`, `state`, `stateVersion` and `lastModifiedAt`. The team completes it in the same pull request, before the first registration; after that the registry enforces `FULL_TRANSITIVE`. The skeleton passes the Central Dogma **Stream gate** as rendered.
+- **After merge** ArgoCD creates the topic and the user, CI registers the schema as `<domain>/<entity>-state`, and MAGI shows the stream as an API.
 
 ## Templating gotchas
 
