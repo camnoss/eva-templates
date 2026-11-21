@@ -1,0 +1,112 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: event-state-stream
+  title: Publish an ECST state stream
+  description: >-
+    A compacted Kafka topic that carries the full state of one entity per key, with
+    CloudEvents headers, an Avro contract in the schema registry and an AsyncAPI
+    document. Opens a pull request in Central Dogma; no repository is created.
+  tags:
+    - kafka
+    - ecst
+    - avro
+    - cloudevents
+spec:
+  owner: group:default/platform
+  type: event-stream
+
+  parameters:
+    - title: Stream
+      required:
+        - domain
+        - entity
+        - owner
+        - producer
+      properties:
+        domain:
+          title: Domain
+          type: string
+          description: The business domain that owns the entity. Also the schema registry group.
+          enum:
+            - billing
+            - payments
+            - customers
+        entity:
+          title: Entity
+          type: string
+          description: >-
+            Lowercase letters, numbers and hyphens, for example customer-bill. The
+            topic is <domain>.<entity>.state.v1.
+          pattern: '^[a-z][a-z0-9]*(-[a-z0-9]+)*$'
+          maxLength: 40
+          ui:autofocus: true
+        owner:
+          title: Owner
+          type: string
+          description: The team that owns the stream and reviews changes to it.
+          ui:field: OwnerPicker
+          ui:options:
+            catalogFilter:
+              kind: Group
+        producer:
+          title: Producer
+          type: string
+          description: The service that publishes the stream. It is the only writer.
+          ui:field: EntityPicker
+          ui:options:
+            catalogFilter:
+              kind: Component
+        partitions:
+          title: Partitions
+          type: integer
+          description: Partitions cannot be reduced later. 12 fits most streams.
+          enum:
+            - 6
+            - 12
+            - 24
+          default: 12
+
+  steps:
+    - id: render
+      name: Render stream folder
+      action: fetch:template
+      input:
+        url: ./skeleton
+        targetPath: ./stream
+        values:
+          domain: ${{ parameters.domain }}
+          entity: ${{ parameters.entity }}
+          # customer-bill -> CustomerBill (Avro record) and customerbill (Avro namespace)
+          entityPascal: ${{ parameters.entity | replace("-", " ") | title | replace(" ", "") }}
+          entityFlat: ${{ parameters.entity | replace("-", "") }}
+          owner: ${{ parameters.owner }}
+          ownerName: ${{ parameters.owner | parseEntityRef | pick("name") }}
+          producer: ${{ parameters.producer }}
+          producerName: ${{ parameters.producer | parseEntityRef | pick("name") }}
+          partitions: ${{ parameters.partitions }}
+
+    - id: pr
+      name: Open Central Dogma pull request
+      action: publish:github:pull-request
+      input:
+        repoUrl: github.com?owner=camnoss&repo=central-dogma
+        # Not feature/add-*: that prefix makes Central Dogma merge new services
+        # on its own, and streams always need a review.
+        branchName: feature/stream-${{ parameters.domain }}-${{ parameters.entity }}
+        title: 'feat(streams): add ${{ parameters.domain }}.${{ parameters.entity }}.state.v1'
+        description: |
+          Adds `streams/${{ parameters.domain }}/${{ parameters.entity }}/`: the compacted topic `${{ parameters.domain }}.${{ parameters.entity }}.state.v1`, its producer user and its contract.
+
+          Created from the `event-state-stream` golden path in MAGI. Owner: `${{ parameters.owner }}`. Producer: `${{ parameters.producer }}`.
+
+          **Before merging, complete the schema** in `schema/${{ parameters.entity | replace("-", " ") | title | replace(" ", "") }}State.avsc`: add every field of the entity's state, in this pull request. Once the schema is registered, every new field needs a default, and fields can never be removed or renamed (FULL_TRANSITIVE).
+
+          After merge, ArgoCD creates the topic and the `${{ parameters.domain }}-${{ parameters.entity }}-producer` KafkaUser, CI registers the schema as `${{ parameters.domain }}/${{ parameters.entity }}-state`, and MAGI shows the stream as an API. Consumers request access with a pull request that adds their own KafkaUser to `kafkausers.yaml`.
+        sourcePath: ./stream
+        targetPath: streams/${{ parameters.domain }}/${{ parameters.entity }}
+
+  output:
+    links:
+      - title: Pull request
+        url: ${{ steps['pr'].output.remoteUrl }}

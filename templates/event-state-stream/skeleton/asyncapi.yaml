@@ -1,0 +1,40 @@
+asyncapi: 3.0.0
+info:
+  title: ${{ values.entityPascal }} state
+  version: 1.0.0
+  description: >
+    ECST snapshot of every ${{ values.entity }} in the ${{ values.domain }} domain. CloudEvents 1.0.2,
+    Kafka binding in binary content mode; the record value is Avro.
+defaultContentType: application/avro
+channels:
+  ${{ values.entityPascal | first | lower }}${{ values.entityPascal.slice(1) }}State:
+    address: ${{ values.domain }}.${{ values.entity }}.state.v1
+    messages:
+      ${{ values.entityPascal | first | lower }}${{ values.entityPascal.slice(1) }}State:
+        name: ${{ values.entityPascal }}State
+        headers:
+          type: object
+          properties:
+            ce_specversion: { type: string, const: "1.0" }
+            ce_id: { type: string, description: "{${{ values.entityPascal | first | lower }}${{ values.entityPascal.slice(1) }}Id}-{stateVersion}" }
+            ce_source: { type: string, const: "urn:company:${{ values.domain }}:${{ values.producerName }}" }
+            ce_type: { type: string, const: "com.company.${{ values.domain }}.${{ values.entityFlat }}.state.v1" }
+            ce_subject: { type: string, description: ${{ values.entityPascal | first | lower }}${{ values.entityPascal.slice(1) }}Id }
+            ce_time: { type: string, format: date-time }
+            ce_partitionkey: { type: string, description: "${{ values.entityPascal | first | lower }}${{ values.entityPascal.slice(1) }}Id, also the Kafka key" }
+            content-type: { type: string, const: application/avro }
+        payload:
+          schemaFormat: application/vnd.apache.avro+json;version=1.9.0
+          schema:
+            $ref: ./schema/${{ values.entityPascal }}State.avsc
+    bindings:
+      kafka:
+        partitions: ${{ values.partitions }}
+        replicas: 3
+        topicConfiguration:
+          cleanup.policy: [compact]
+operations:
+  publish${{ values.entityPascal }}State:
+    action: send
+    channel:
+      $ref: '#/channels/${{ values.entityPascal | first | lower }}${{ values.entityPascal.slice(1) }}State'
