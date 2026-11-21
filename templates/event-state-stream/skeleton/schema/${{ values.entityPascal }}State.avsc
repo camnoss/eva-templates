@@ -1,0 +1,19 @@
+{
+  "type": "record",
+  "name": "${{ values.entityPascal }}State",
+  "namespace": "com.company.${{ values.domain }}.${{ values.entityFlat }}",
+  "doc": "TODO: complete this schema before the first merge. Event-carried state transfer snapshot of one ${{ values.entity }}, keyed by ${{ values.entityPascal | first | lower }}${{ values.entityPascal.slice(1) }}Id. Add every field of the state below the envelope fields. After the first registration, new fields need a default and no field can be removed or renamed (FULL_TRANSITIVE).",
+  "fields": [
+    { "name": "${{ values.entityPascal | first | lower }}${{ values.entityPascal.slice(1) }}Id", "type": "string",
+      "doc": "Stable public id of the ${{ values.entity }}. Also the Kafka key, CloudEvents subject and partitionkey." },
+    { "name": "state",
+      "type": { "type": "enum", "name": "${{ values.entityPascal }}LifecycleState",
+        "symbols": ["UNKNOWN"],
+        "default": "UNKNOWN",
+        "doc": "Lifecycle state of the ${{ values.entity }}. Add its states as symbols; unknown symbols resolve to UNKNOWN, so new symbols stay compatible." } },
+    { "name": "stateVersion", "type": "long",
+      "doc": "Monotonic version of this state. Readers must ignore records whose stateVersion is not greater than the stored one." },
+    { "name": "lastModifiedAt", "type": { "type": "long", "logicalType": "timestamp-millis" },
+      "doc": "Instant of the last committed change in the source system." }
+  ]
+}

@@ -1,0 +1,22 @@
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: ${{ values.domain }}-${{ values.entity }}-state-v1
+  title: ${{ values.entityPascal }} state (ECST)
+  description: Current state of every ${{ values.entity }} in the ${{ values.domain }} domain.
+  tags: [ecst, kafka, avro]
+  annotations:
+    nerv.io/kafka-topic: ${{ values.domain }}.${{ values.entity }}.state.v1
+    nerv.io/schema-artifact: ${{ values.domain }}/${{ values.entity }}-state
+    nerv.io/compatibility: FULL_TRANSITIVE
+    # MAGI adds the providesApi relation to the producer from this annotation.
+    nerv.io/producer: ${{ values.producer }}
+    argocd/app-name: stream-${{ values.domain }}-${{ values.entity }}
+spec:
+  type: asyncapi
+  lifecycle: production
+  owner: ${{ values.owner }}
+  system: ${{ values.domain }}
+  definition:
+    # $asyncapi bundles the $ref to the Avro schema for the API page.
+    $asyncapi: ./asyncapi.yaml
