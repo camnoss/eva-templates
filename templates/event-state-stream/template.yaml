@@ -6,8 +6,8 @@ metadata:
   description: >-
     A compacted Kafka topic that carries the full state of one entity per key, with
     CloudEvents headers, an Avro contract in the schema registry and an AsyncAPI
-    document. You define the schema in the form, and the template opens a pull
-    request in Central Dogma. No repository is created.
+    document. You define the schema in the form; the pull request in Central Dogma
+    merges itself once its checks pass. No repository is created.
   tags:
     - kafka
     - ecst
@@ -174,8 +174,9 @@ spec:
       action: publish:github:pull-request
       input:
         repoUrl: github.com?owner=camnoss&repo=central-dogma
-        # Not feature/add-*: that prefix makes Central Dogma merge new services
-        # on its own, and streams always need a review.
+        # Central Dogma merges feature/stream-* pull requests on its own when they
+        # only add a new stream folder and the Stream gate passes. Not
+        # feature/add-*, which is for new services.
         branchName: feature/stream-${{ parameters.domain }}-${{ parameters.entity }}
         title: 'feat(streams): add ${{ parameters.domain }}.${{ parameters.entity }}.state.v1'
         description: |
@@ -185,7 +186,7 @@ spec:
 
           The contract is `schema/${{ parameters.entity | replace("-", " ") | title | replace(" ", "") }}State.avsc`, generated from the fields entered in MAGI.
 
-          Once the schema is registered, new fields must be optional and fields can never be removed, renamed or change type (FULL_TRANSITIVE).
+          **This pull request merges itself** once the Stream gate passes (Avro syntax, registry compatibility, AsyncAPI document, one writer, compacted topic), because it only adds a new stream. The schema is registered right after; from then on, new fields must be optional and fields can never be removed, renamed or change type (FULL_TRANSITIVE).
 
           After merge, ArgoCD creates the topic and the `${{ parameters.domain }}-${{ parameters.entity }}-producer` KafkaUser, CI registers the schema as `${{ parameters.domain }}/${{ parameters.entity }}-state`, and MAGI shows the stream as an API. Consumers request access with a pull request that adds their own KafkaUser to `kafkausers.yaml`.
         sourcePath: ./stream
