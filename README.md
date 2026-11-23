@@ -54,9 +54,9 @@ The BRM templates and `event-state-stream` are the exceptions to the deployment 
 `event-state-stream` publishes an **ECST state stream**: a compacted Kafka topic `<domain>.<entity>.state.v1` that carries the full state of one entity per key, with CloudEvents 1.0.2 headers and an Avro value. See [Event streams in Central Dogma](https://github.com/camnoss/central-dogma#event-streams).
 
 - **No repository, no service.** The stream belongs to an existing producer, picked from the catalog. The template only renders `streams/<domain>/<entity>/` and opens a pull request in Central Dogma from `feature/stream-<domain>-<entity>`. It never uses `feature/add-*`, so the pull request is not merged automatically; the domain team reviews it.
-- **What the folder holds:** `kafkatopic.yaml`, `kafkausers.yaml` (the producer user `<domain>-<entity>-producer`, with `Write`), `schema/<Entity>State.avsc`, `asyncapi.yaml` and `catalog-info.yaml` (an `API` linked to its producer through the `nerv.io/producer` annotation).
-- **The schema is a starter.** It holds only the envelope fields: `<entity>Id`, `state`, `stateVersion` and `lastModifiedAt`. The team completes it in the same pull request, before the first registration; after that the registry enforces `FULL_TRANSITIVE`. The skeleton passes the Central Dogma **Stream gate** as rendered.
-- **After merge** ArgoCD creates the topic and the user, CI registers the schema as `<domain>/<entity>-state`, and MAGI shows the stream as an API.
+- **The schema comes from the form.** The second page asks for the lifecycle states and the fields: name, type, whether it is required, and a description. The template adds the envelope fields (`<entity>Id`, `state` with `UNKNOWN` first, `stateVersion`, `lastModifiedAt`) and writes `schema/<Entity>State.avsc`. Optional fields are `["null", <type>]` with `default: null`. Money uses `decimal` (Avro `bytes` with precision 18, scale 2), instants `timestamp-millis` and calendar dates `date`.
+- **What the folder holds:** `kafkatopic.yaml`, `kafkausers.yaml` (the producer user `<domain>-<entity>-producer`, with `Write`), the schema, `asyncapi.yaml` and `catalog-info.yaml` (an `API` linked to its producer through the `nerv.io/producer` annotation).
+- **After merge** ArgoCD creates the topic and the user, CI registers the schema as `<domain>/<entity>-state`, and MAGI shows the stream as an API. From then on the registry enforces `FULL_TRANSITIVE`: new fields must be optional, and no field can be removed, renamed or change its type.
 
 ## Templating gotchas
 
