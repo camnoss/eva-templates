@@ -2,15 +2,26 @@
   "type": "record",
   "name": "${{ values.entityPascal }}State",
   "namespace": "com.company.${{ values.domain }}.${{ values.entityFlat }}",
-  "doc": "TODO: complete this schema before the first merge. Event-carried state transfer snapshot of one ${{ values.entity }}, keyed by ${{ values.entityPascal | first | lower }}${{ values.entityPascal.slice(1) }}Id. Add every field of the state below the envelope fields. After the first registration, new fields need a default and no field can be removed or renamed (FULL_TRANSITIVE).",
+  "doc": "Event-carried state transfer snapshot of one ${{ values.entity }} in the ${{ values.domain }} domain, keyed by ${{ values.entityPascal | first | lower }}${{ values.entityPascal.slice(1) }}Id. One record per committed change. Consumers upsert by ${{ values.entityPascal | first | lower }}${{ values.entityPascal.slice(1) }}Id only when stateVersion is greater than the stored one.",
   "fields": [
     { "name": "${{ values.entityPascal | first | lower }}${{ values.entityPascal.slice(1) }}Id", "type": "string",
       "doc": "Stable public id of the ${{ values.entity }}. Also the Kafka key, CloudEvents subject and partitionkey." },
     { "name": "state",
       "type": { "type": "enum", "name": "${{ values.entityPascal }}LifecycleState",
-        "symbols": ["UNKNOWN"],
+        "symbols": ${{ ["UNKNOWN"].concat(values.states or []) | dump }},
         "default": "UNKNOWN",
-        "doc": "Lifecycle state of the ${{ values.entity }}. Add its states as symbols; unknown symbols resolve to UNKNOWN, so new symbols stay compatible." } },
+        "doc": "Lifecycle state of the ${{ values.entity }}. Unknown symbols resolve to UNKNOWN, so new states stay compatible." } },
+{%- for f in values.fields %}
+    { "name": "${{ f.name }}",
+      {%- if f.type == "decimal" %}{% set avroType = '{ "type": "bytes", "logicalType": "decimal", "precision": 18, "scale": 2 }' %}
+      {%- elif f.type == "timestamp" %}{% set avroType = '{ "type": "long", "logicalType": "timestamp-millis" }' %}
+      {%- elif f.type == "date" %}{% set avroType = '{ "type": "int", "logicalType": "date" }' %}
+      {%- else %}{% set avroType = '"' + f.type + '"' %}{% endif %}
+      {%- if f.required == false %} "type": ["null", ${{ avroType }}], "default": null
+      {%- else %} "type": ${{ avroType }}{% endif %}
+      {%- if f.doc %},
+      "doc": ${{ f.doc | dump }}{% endif %} },
+{%- endfor %}
     { "name": "stateVersion", "type": "long",
       "doc": "Monotonic version of this state. Readers must ignore records whose stateVersion is not greater than the stored one." },
     { "name": "lastModifiedAt", "type": { "type": "long", "logicalType": "timestamp-millis" },

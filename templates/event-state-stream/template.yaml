@@ -6,7 +6,8 @@ metadata:
   description: >-
     A compacted Kafka topic that carries the full state of one entity per key, with
     CloudEvents headers, an Avro contract in the schema registry and an AsyncAPI
-    document. Opens a pull request in Central Dogma; no repository is created.
+    document. You define the schema in the form; the pull request in Central Dogma
+    merges itself once its checks pass. No repository is created.
   tags:
     - kafka
     - ecst
@@ -67,6 +68,86 @@ spec:
             - 24
           default: 12
 
+    - title: Schema
+      description: >-
+        The Avro contract of the stream. Every event is a full snapshot of one entity.
+        The id, state, stateVersion and lastModifiedAt fields are always included. The
+        schema is registered when the pull request merges; after that, new fields must
+        be optional and no field can be removed, renamed or change its type
+        (FULL_TRANSITIVE).
+      required:
+        - fields
+      properties:
+        states:
+          title: Lifecycle states
+          type: array
+          description: >-
+            Values of the state field, in UPPER_SNAKE_CASE, for example ACTIVE or
+            CANCELLED. UNKNOWN is always added first and is the default, so states
+            added later stay compatible.
+          uniqueItems: true
+          default: []
+          items:
+            type: string
+            pattern: '^[A-Z][A-Z0-9_]*$'
+            maxLength: 40
+            not:
+              const: UNKNOWN
+        fields:
+          title: Fields
+          type: array
+          description: The fields that describe the entity's state.
+          minItems: 1
+          items:
+            type: object
+            required:
+              - name
+              - type
+            properties:
+              name:
+                title: Name
+                type: string
+                description: >-
+                  camelCase, for example totalAmount. Don't repeat the fields added
+                  automatically: <entity>Id, state, stateVersion and lastModifiedAt.
+                pattern: '^[a-z][a-zA-Z0-9]*$'
+                maxLength: 40
+                not:
+                  enum:
+                    - state
+                    - stateVersion
+                    - lastModifiedAt
+              type:
+                title: Type
+                type: string
+                default: string
+                oneOf:
+                  - const: string
+                    title: Text (string)
+                  - const: int
+                    title: Integer, 32-bit (int)
+                  - const: long
+                    title: Integer, 64-bit (long)
+                  - const: boolean
+                    title: Yes/no (boolean)
+                  - const: decimal
+                    title: Money or exact decimal (decimal 18,2)
+                  - const: double
+                    title: Approximate number (double, not for money)
+                  - const: timestamp
+                    title: Instant (timestamp-millis)
+                  - const: date
+                    title: Calendar date (date)
+              required:
+                title: Required
+                type: boolean
+                description: Optional fields can be null and default to null.
+                default: true
+              doc:
+                title: Description
+                type: string
+                description: What the field means. Shown in MAGI and in the registry.
+
   steps:
     - id: render
       name: Render stream folder
@@ -85,14 +166,17 @@ spec:
           producer: ${{ parameters.producer }}
           producerName: ${{ parameters.producer | parseEntityRef | pick("name") }}
           partitions: ${{ parameters.partitions }}
+          states: ${{ parameters.states }}
+          fields: ${{ parameters.fields }}
 
     - id: pr
       name: Open Central Dogma pull request
       action: publish:github:pull-request
       input:
         repoUrl: github.com?owner=camnoss&repo=central-dogma
-        # Not feature/add-*: that prefix makes Central Dogma merge new services
-        # on its own, and streams always need a review.
+        # Central Dogma merges feature/stream-* pull requests on its own when they
+        # only add a new stream folder and the Stream gate passes. Not
+        # feature/add-*, which is for new services.
         branchName: feature/stream-${{ parameters.domain }}-${{ parameters.entity }}
         title: 'feat(streams): add ${{ parameters.domain }}.${{ parameters.entity }}.state.v1'
         description: |
@@ -100,7 +184,9 @@ spec:
 
           Created from the `event-state-stream` golden path in MAGI. Owner: `${{ parameters.owner }}`. Producer: `${{ parameters.producer }}`.
 
-          **Before merging, complete the schema** in `schema/${{ parameters.entity | replace("-", " ") | title | replace(" ", "") }}State.avsc`: add every field of the entity's state, in this pull request. Once the schema is registered, every new field needs a default, and fields can never be removed or renamed (FULL_TRANSITIVE).
+          The contract is `schema/${{ parameters.entity | replace("-", " ") | title | replace(" ", "") }}State.avsc`, generated from the fields entered in MAGI.
+
+          **This pull request merges itself** once the Stream gate passes (Avro syntax, registry compatibility, AsyncAPI document, one writer, compacted topic), because it only adds a new stream. The schema is registered right after; from then on, new fields must be optional and fields can never be removed, renamed or change type (FULL_TRANSITIVE).
 
           After merge, ArgoCD creates the topic and the `${{ parameters.domain }}-${{ parameters.entity }}-producer` KafkaUser, CI registers the schema as `${{ parameters.domain }}/${{ parameters.entity }}-state`, and MAGI shows the stream as an API. Consumers request access with a pull request that adds their own KafkaUser to `kafkausers.yaml`.
         sourcePath: ./stream
